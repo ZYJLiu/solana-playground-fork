@@ -1,2 +1,110 @@
-// Client code...
-console.log(42)
+import { Metaplex } from "@metaplex-foundation/js";
+import { getMint, getAssociatedTokenAddressSync } from "@solana/spl-token";
+
+const TOKEN_METADATA_PROGRAM_ID = new web3.PublicKey(
+  "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+);
+
+const metaplex = Metaplex.make(pg.connection);
+
+const metadata = {
+  uri: "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/spl-token.json",
+  name: "Solana Gold",
+  symbol: "GOLDSOL",
+};
+
+const [rewardTokenMintPda] = anchor.web3.PublicKey.findProgramAddressSync(
+  [Buffer.from("reward")],
+  pg.PROGRAM_ID
+);
+
+const [vaultTokenAccountPda] = anchor.web3.PublicKey.findProgramAddressSync(
+  [Buffer.from("vault"), rewardTokenMintPda.toBuffer()],
+  pg.PROGRAM_ID
+);
+
+const rewardTokenMintMetadataPDA = await metaplex
+  .nfts()
+  .pdas()
+  .metadata({ mint: rewardTokenMintPda });
+
+const playerTokenAccount = getAssociatedTokenAddressSync(
+  rewardTokenMintPda,
+  pg.wallet.publicKey
+);
+
+async function logTransaction(txHash) {
+  const { blockhash, lastValidBlockHeight } =
+    await pg.connection.getLatestBlockhash();
+
+  await pg.connection.confirmTransaction({
+    blockhash,
+    lastValidBlockHeight,
+    signature: txHash,
+  });
+
+  console.log(`Use 'solana confirm -v ${txHash}' to see the logs`);
+}
+
+async function fetchBalances() {
+  const [playerBalance, vaultBalance] = await Promise.all([
+    pg.connection.getTokenAccountBalance(playerTokenAccount),
+    pg.connection.getTokenAccountBalance(vaultTokenAccountPda),
+  ]);
+
+  console.log("Player Token Balance: ", playerBalance.value.uiAmount);
+  console.log("Vault Token Balance: ", vaultBalance.value.uiAmount);
+}
+
+let txHash;
+
+try {
+  const mintData = await getMint(pg.connection, rewardTokenMintPda);
+  console.log("Mint Already Exists");
+} catch {
+  txHash = await pg.program.methods
+    .createMint(metadata.uri, metadata.name, metadata.symbol)
+    .accounts({
+      rewardTokenMint: rewardTokenMintPda,
+      metadataAccount: rewardTokenMintMetadataPDA,
+      tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+    })
+    .rpc();
+  await logTransaction(txHash);
+}
+console.log("Token Mint: ", rewardTokenMintPda.toString());
+
+txHash = await pg.program.methods
+  .mintTokens(new anchor.BN(1_000_000_000))
+  .accounts({
+    playerTokenAccount: playerTokenAccount,
+    rewardTokenMint: rewardTokenMintPda,
+  })
+  .rpc();
+await logTransaction(txHash);
+const playerBalance = await pg.connection.getTokenAccountBalance(
+  playerTokenAccount
+);
+console.log("Player Token Balance: ", playerBalance.value.uiAmount);
+
+txHash = await pg.program.methods
+  .depositTokens(new anchor.BN(1_000_000_000))
+  .accounts({
+    playerTokenAccount: playerTokenAccount,
+    vaultTokenAccount: vaultTokenAccountPda,
+    rewardTokenMint: rewardTokenMintPda,
+  })
+  .rpc();
+await logTransaction(txHash);
+await fetchBalances();
+
+txHash = await pg.program.methods
+  .withdrawTokens(new anchor.BN(1_000_000_000))
+  .accounts({
+    playerTokenAccount: playerTokenAccount,
+    vaultTokenAccount: vaultTokenAccountPda,
+    rewardTokenMint: rewardTokenMintPda,
+  })
+  .rpc();
+await logTransaction(txHash);
+await fetchBalances();

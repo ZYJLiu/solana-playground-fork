@@ -98,4 +98,24 @@ export const TUTORIALS: TutorialData[] = [
     categories: [TutorialCategory.ANCHOR, TutorialCategory.GAMING],
     elementImport: () => import("./TinyAdventureTwo"),
   },
+
+  {
+    name: "Anchor Token",
+    description:
+      "Create a Token Mint with Metadata, Mint Tokens, and Transfer Tokens",
+    imageSrc: getTutorialImgSrc("anchor-token/anchorToken.jpg"),
+    authors: [
+      {
+        name: "Jonas Hahn",
+        link: "https://twitter.com/solplay_jonas",
+      },
+      {
+        name: "John",
+        link: "https://twitter.com/ZYJLiu",
+      },
+    ],
+    level: TutorialLevel.BEGINNER,
+    categories: [TutorialCategory.ANCHOR, TutorialCategory.GAMING],
+    elementImport: () => import("./AnchorToken"),
+  },
 ];
